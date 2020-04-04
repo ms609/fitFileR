@@ -49,9 +49,10 @@
   while(seek(con, where = NA) < (file_header$data_size + 14)) {
     
     record_header <- .readRecordHeader(con)
+    # lmt = local message type
     lmt <- as.character(record_header$local_message_type)
     if(record_header$message_type == "definition") {
-
+      
       if(lmt == prev_lmt) {
         plmt <- as.character(as.integer(plmt) + 1)
       } else {
@@ -65,11 +66,12 @@
       defs_count[[ plmt ]] <- 0
 
     } else if(record_header$message_type == "data") {
-      
       defIdx <- pseudoMessageTab[ max(which(pseudoMessageTab[,1] == lmt)), 2]
       message <- .scanMessage.data(con, defs[[ defIdx ]])
       defs_count[[ defIdx ]] <- defs_count[[ defIdx ]] + 1
-      
+      if (record_header$type == "compressed_timestamp") {
+        message <- message - 4L # No four-byte timestamp ##TODO you are here
+      }
     } else {
       stop("unknown message type")
     }
