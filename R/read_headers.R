@@ -48,6 +48,10 @@
   
   header <- list()
   header$type <- "normal"
+  if (record_header[5] != 0) {
+    stop("Reserved bit not zero in normal header at file byte ", 
+          seek(con) - 1L, ': ', ifelse(record_header, 1, 0))
+  }
   header$message_type <- ifelse(record_header[7], "definition", "data")
   header$developer_data <- as.logical(record_header[6])
   header$local_message_type <- .binaryToInt(record_header[1:4])
