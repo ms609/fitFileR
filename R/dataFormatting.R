@@ -37,8 +37,8 @@
 .processMessageType <- function(obj, name, drop = TRUE) {
   
   ## load the appropriate key/value table
-  data("fit_message_types", 
-       package = "fitFileR", 
+  data("fit_message_types",
+       package = "fitFileR",
        envir = environment())
   
   if(!name %in% names(fit_message_types)) {
