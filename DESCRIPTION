@@ -4,7 +4,7 @@ Title: Reading .fit files using only native R code
 Author: Mike Smith <grimbough@gmail.com>
 Maintainer: Mike Smith <grimbough@gmail.com>
 VignetteBuilder: knitr
-Description:
+Description: 
 Suggests: leaflet
 License: Artistic-2.0
 LazyLoad: yes
