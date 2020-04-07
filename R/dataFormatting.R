@@ -9,15 +9,14 @@
        package = "fitFileR", 
        envir = environment())
   
-  globalMessageNum <- sapply(defs, function(x) { x$global_message_num } )
+  globalMessageNum <- vapply(defs, `[[`, integer(1), 'global_message_num')
   
-  ## we are going to remove any entries that have a global message number
-  ## we can't identify from the SDK.  (Edge 500 has message 22 a lot).
-  rm_idx <- which(!globalMessageNum %in% fit_data_types$mesg_num[['key']])
-  if(length(rm_idx)) {
-    scaffold <- scaffold[ -rm_idx ]
-    globalMessageNum <- globalMessageNum[ -rm_idx ]
-  }
+  ## Remove any entries that have a global message number we can't identify 
+  ## from the SDK.  (e.g. Garmin uses message 22 for debugging).
+  known_idx <- globalMessageNum %in% fit_data_types$mesg_num[['key']]
+  scaffold <- scaffold[known_idx]
+  globalMessageNum <- globalMessageNum[known_idx]
+  
   
   ## Merge entries with the same global message number, but are separate.
   ## This arises when a few records are written with different columns 
