@@ -129,8 +129,12 @@ ReadFit <- function (fileName) {
         dataBytes <- sum(fields[, 'size'])
         
         messages[[messageType]][entry, ] <- 
-          .ReadData(dat[nextByte + seq_len(dataBytes) - 1L], fields)
+          .ReadData(dat[nextByte + seq_len(dataBytes) - 1L], fields,
+                    messageEndian[[messageType]])
         
+        output <- capture.output(print(.PrintMessage(messages[[messageType]][entry, ], fields)))
+        message(output[1])
+        message(output[2])
         nextByte <- nextByte + dataBytes
         
       }
@@ -142,29 +146,37 @@ ReadFit <- function (fileName) {
   
 }
 
-.ReadData <- function (bytes, fields) {
+.ReadData <- function (bytes, fields, bigEndian) {
   nFields <- nrow(fields)
   sizes <- fields[, 'size']
   whichField <- rep(seq_len(nFields), sizes)
-  vapply(seq_len(nFields), function (i) .BytesToInt(bytes[whichField == i]), 0)
+  vapply(seq_len(nFields), 
+         function (i) .BytesToInt(bytes[whichField == i], bigEndian),
+         0)
 }
 
 .PrintMessage <- function (msg, fields) {
   ret <- msg
   fieldNames <- rownames(fields)
   dataTypeNames <- names(fit_data_types)
-  for (i in seq_along(fields)) {
-    if (fields$type[i] == 'date_time') {
-      ret[, i] <- as.POSIXct(msg[, i], tz = 'UTC', origin = "1989-12-31 00:00")
-    }
-    if (fieldNames[i] %in% dataTypeNames) {
-      values <- fit_data_types[[fieldNames[i]]]
-      ret[, i] <- values$value[match(msg[, i], values$key)]
+  for (i in seq_len(nrow(fields))) {
+    if (fields$type[i] %in% dataTypeNames) {
+      switch(fields$type[i],
+             'date_time' = {
+               ret[, i] <- as.POSIXct(msg[, i], tz = 'UTC', origin = "1989-12-31 00:00")
+             }, 
+             {
+               values <- fit_data_types[[fields$type[i]]]
+               ret[, i] <- values$value[match(msg[, i], values$key)]
+             }
+      )
     }
   }
-  if (all(c('manufacturer', 'product') %in% colnames(ret)) && ret[, 'manufacturer'] == 'garmin') {
+  if (all(c('manufacturer', 'product') %in% colnames(ret)) && ret[1, 'manufacturer'] == 'garmin') {
+    # Assume that all entries relate to same device...
     values <- fit_data_types$garmin_product
-    ret[, 'product'] <- values$value[match(msg[, 'product'], values$key)]
+    prodKey <- match(msg[, 'product'], values$key)
+    ret[!is.na(prodKey), 'product'] <- values$value[prodKey[!is.na(prodKey)]]
   }
   
   ret
