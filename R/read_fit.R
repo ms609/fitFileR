@@ -1,3 +1,5 @@
+# TODO set dud values to NA.
+
 
 data("fit_data_types")
 data("fit_message_types")
@@ -193,7 +195,9 @@ ReadFit <- function (fileName, verbose = FALSE) {
     messages[[msgType]] <- messages[[msgType]][seq_len(nEntries[msgType]), ]
   }
   
-  structure(messages, class='FitData')
+  structure(list(fields = messageFields,
+                 messages = messages),
+            class='FitData')
 }
 
 #' @exportClass FitData
@@ -202,8 +206,16 @@ NULL
 #' @export
 print.FitData <- function (x, ...) {
   cat("FitData object with message types: \n ", 
-      paste(names(x), collapse = '\n  '))
+      paste(names(x$messages), collapse = '\n  '))
 }
+
+#' @export
+FitItem <- function (dat, i, ...) {
+  messages <- dat[['messages']][[i]]
+  fields <- dat[['fields']][[i]]
+  .PrintMessage(messages, fields)
+}
+  
 
 .CustomMessageName <- function (x) {
   paste0('custom_msg_', x)
@@ -222,12 +234,13 @@ print.FitData <- function (x, ...) {
   ret <- msg
   fieldNames <- rownames(fields)
   dataTypeNames <- names(fit_data_types)
+  
   for (i in seq_len(nrow(fields))) {
     if (fields$type[i] %in% dataTypeNames) {
       switch(fields$type[i],
              'date_time' = {
                ret[, i] <- as.POSIXct(msg[, i], tz = 'UTC', origin = "1989-12-31 00:00")
-             }, 
+             },
              {
                values <- fit_data_types[[fields$type[i]]]
                ret[, i] <- values$value[match(msg[, i], values$key)]
@@ -235,6 +248,10 @@ print.FitData <- function (x, ...) {
       )
     }
   }
+     
+  positions <- fieldNames %in% c('position_lat', 'position_long')
+  ret[, positions] <- msg[, positions] * (180 / (2^31))
+  
   manufacturer <- ret[1, 'manufacturer']
   if (all(c('manufacturer', 'product') %in% colnames(ret)) && 
       !is.na(manufacturer) && manufacturer == 'garmin') {

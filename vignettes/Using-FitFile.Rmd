@@ -1,0 +1,42 @@
+---
+title: "Using FitFile"
+author: "Martin Smith"
+output: html_document
+---
+  
+```{r load}
+library('FitFile')
+data("fit_data_types")
+data("fit_message_types")
+data("fit_global_messages")
+```
+
+# Plot records
+```{r plot, warning = FALSE}
+  forerunnerFile <- system.file("extdata/fr35.FIT", package = "FitFile")
+  dat <- ReadFit(forerunnerFile)
+  
+  records <- FitItem(dat, 'record')
+  speeds <- records$speed
+  hr <- records$heart_rate
+  speedPal <- colorNumeric('inferno', c(0, max(speeds)))
+  
+  
+  library('leaflet')
+  map <- leaflet(records)
+  map <- addTiles(map)
+  #map <- addMarkers(map, long, lat)
+  map <- addCircleMarkers(map, ~position_long, ~position_lat, 
+                          color = ~speedPal(speed),
+                          radius = ~sqrt(heart_rate - 55) / 3,
+                          stroke = FALSE,
+                          fillOpacity = 0.8)
+  map <- addLegend(map, 'topright', pal = speedPal, values = speeds,
+                   title = 'Speed')
+  
+  #plot(long ~ lat, col = speedCol[records$speed], cex = hrLwd, pch = 20L)
+  map
+  
+```
+
+
