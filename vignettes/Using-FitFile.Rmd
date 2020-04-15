@@ -20,19 +20,27 @@ data("fit_global_messages")
   speeds <- records$speed
   hr <- records$heart_rate
   speedPal <- colorNumeric('inferno', c(0, max(speeds)))
+  hrPal <- colorNumeric('inferno', c(55, 210))
   
+  MPH <- function (ms) paste(signif(ms * 3.6 / 1609, 4), 'mph')
+  KMH <- function (ms) paste(signif(ms * 3.6 / 1000, 4), 'km/h')
+  MS <- function (ms) paste(signif(ms / 1000, 4), 'm/s')
   
   library('leaflet')
   map <- leaflet(records)
   map <- addTiles(map)
   #map <- addMarkers(map, long, lat)
   map <- addCircleMarkers(map, ~position_long, ~position_lat, 
-                          color = ~speedPal(speed),
-                          radius = ~sqrt(heart_rate - 55) / 3,
-                          stroke = FALSE,
-                          fillOpacity = 0.8)
-  map <- addLegend(map, 'topright', pal = speedPal, values = speeds,
-                   title = 'Speed')
+                          #color = ~speedPal(speed),
+                          color = ~hrPal(heart_rate),
+                          radius = ~speed / max(speeds) * 5,
+                          label = ~MPH(speed),
+                          #radius = ~sqrt(heart_rate - 55) / 3,
+                          stroke = FALSE)
+#  map <- addLegend(map, 'topright', pal = speedPal, values = speeds,
+#                   title = 'Speed')
+  map <- addLegend(map, 'topright', pal = hrPal, values = records$heart_rate,
+                   title = 'Heart rate')
   
   #plot(long ~ lat, col = speedCol[records$speed], cex = hrLwd, pch = 20L)
   map
