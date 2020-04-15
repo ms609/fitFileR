@@ -3,7 +3,12 @@ data("fit_data_types")
 data("fit_message_types")
 data("fit_global_messages")
 
-ReadFit <- function (fileName) {
+#' Read a FIT file
+#' 
+#' @return `ReadFit()` returns an object of class `FitData`.
+#' @template MRS
+#' @export
+ReadFit <- function (fileName, verbose = FALSE) {
   
   .NextByte <- function () readBin(con, 'raw', 1L)
   .NextInt <- function (bits = 1L, endian = 'little', ...) {
@@ -36,6 +41,7 @@ ReadFit <- function (fileName) {
   
   dat <- readBin(con, 'raw', dataSize)
   
+
   messages <- list()
   messageFields <- list()
   messageEndian <- list()
@@ -48,8 +54,7 @@ ReadFit <- function (fileName) {
   devWarning <- FALSE
   
   nextByte <- 1
-  while (nextByte < 1000L) {
-  #while (nextByte < dataSize) {
+  while (nextByte < dataSize) {
     header <- rawToBits(dat[nextByte])
     
     if (header[5]) {
@@ -63,6 +68,8 @@ ReadFit <- function (fileName) {
       
       localMessageType <- .BitsToInt(header[6:7])
       timeOffset <- .BitsToInt(header[1:5])
+      stop("Compressed header at byte ", nextByte, " not yet supported")
+      
     } else {
       
       # Normal header
@@ -97,7 +104,7 @@ ReadFit <- function (fileName) {
           
         } else {
           
-          globalMessageName <- paste('Custom message', globalMessageNumber)
+          globalMessageName <- .CustomMessageName(globalMessageNumber)
           nEntries[globalMessageName] <- 0
           fieldNames <- paste('Cstm fld', seq_len(nFields))
           fieldTypes <- rep(NA, nFields)
@@ -105,16 +112,20 @@ ReadFit <- function (fileName) {
         }
         localToGlobal[as.character(localMessageType)] <- globalMessageName
         
-        message("\n\nBytes following ", byte0 - 1L, 
-                " assign local message type ", localMessageType, " to:\n  ",
-                globalMessageNumber, ": '", globalMessageName, 
-                "' (", nFields, " fields).")
-        
+        if (verbose) {
+          message("\n\nBytes following ", byte0 - 1L, 
+                  " assign local message type ", localMessageType, " to:\n  ",
+                  globalMessageNumber, ": '", globalMessageName, 
+                  "' (", nFields, " fields).")
+        }
         
         baseTypeIndices <- as.integer(fields[3, ] & as.raw(0x1F)) + 1L
-        if (!identical(fitBaseTypes[baseTypeIndices, 'size'],
-                       as.integer(fields[2, ]))) {
-          warning("Base type number does not match size at data byte ", byte0)
+        btiSize <- fitBaseTypes[baseTypeIndices, 'size']
+        fldSize <- as.integer(fields[2, ])
+        if (!identical(btiSize, fldSize)) {
+          warning("Base type number does not match size in fields [",
+                  paste(fieldNames[btiSize != fldSize], collapse = ', '),
+                  '].\n  Message: "', globalMessageName, '"; data byte: ', byte0)
         }
         
         names(baseTypeIndices) <- fieldNames
@@ -163,10 +174,12 @@ ReadFit <- function (fileName) {
           .ReadData(dat[nextByte + seq_len(dataBytes) - 1L], fields,
                     messageEndian[[messageType]])
         
-        output <- capture.output(print(.PrintMessage(messages[[messageType]][entry, ], fields)))
-        for (i in seq_len(length(output) / 2)) {
-          message(output[i + i])
-          message(output[i + i + 1L])
+        if (verbose) {
+          output <- capture.output(print(.PrintMessage(messages[[messageType]][entry, ], fields)))
+          for (i in seq_len(length(output) / 2)) {
+            message(output[i + i])
+            message(output[i + i + 1L])
+          }
         }
         nextByte <- nextByte + dataBytes
         
@@ -176,6 +189,24 @@ ReadFit <- function (fileName) {
     
   }
   
+  for (msgType in names(messages)) {
+    messages[[msgType]] <- messages[[msgType]][seq_len(nEntries[msgType]), ]
+  }
+  
+  structure(messages, class='FitData')
+}
+
+#' @exportClass FitData
+NULL
+
+#' @export
+print.FitData <- function (x, ...) {
+  cat("FitData object with message types: \n ", 
+      paste(names(x), collapse = '\n  '))
+}
+
+.CustomMessageName <- function (x) {
+  paste0('custom_msg_', x)
 }
 
 .ReadData <- function (bytes, fields, bigEndian) {
