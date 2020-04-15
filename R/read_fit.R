@@ -1,4 +1,8 @@
 
+data("fit_data_types")
+data("fit_message_types")
+data("fit_global_messages")
+
 ReadFit <- function (fileName) {
   
   .NextByte <- function () readBin(con, 'raw', 1L)
@@ -39,12 +43,13 @@ ReadFit <- function (fileName) {
   nEntries <- integer(nrow(globalMessageNumbers))
   names(nEntries) <- globalMessageNumbers$value
   localToGlobal <- character(16)
-  names(localToGlobal) <- as.character(0:15)
+  names(localToGlobal) <- formatC(0:15, digits = 1, flag = '0')
   
   devWarning <- FALSE
   
   nextByte <- 1
-  while (nextByte < dataSize) {
+  while (nextByte < 144L) {
+  #while (nextByte < dataSize) {
     header <- rawToBits(dat[nextByte])
     
     if (header[5]) {
@@ -68,17 +73,34 @@ ReadFit <- function (fileName) {
           stop("First byte of definition is not zero at data byte ", byte0)
         }
         bigEndian <- as.logical(dat[byte0 + 1L])
-        globalMessageNumber <- .BytesToInt(dat[byte0 + 2:3], bigEndian)
-        globalMessageName <- as.character(globalMessageNumbers[globalMessageNumbers$key == globalMessageNumber, 'value'])
-        localToGlobal[as.character(localMessageType)] <- globalMessageName
         nFields <- as.integer(dat[byte0 + 4L])
-        
-        message("Defined message type ", globalMessageNumber, " with ",
-                nFields, " fields.")
-        
-        fieldDetails <- fit_message_types[[globalMessageName]]
         fields <- matrix(dat[byte0 + 4 + seq_len(nFields * 3L)], 3L)
-        detailIndex <- match(as.integer(fields[1, ]), fieldDetails$key)
+        
+        
+        globalMessageNumber <- .BytesToInt(dat[byte0 + 2:3], bigEndian)
+        globalMessageName <- globalMessageNumbers[globalMessageNumbers$key == globalMessageNumber, 'value']
+        if (length(globalMessageName[[1]])) {
+          
+          globalMessageName <- as.character(globalMessageName)
+          fieldDetails <- fit_message_types[[globalMessageName]]
+          detailIndex <- match(as.integer(fields[1, ]), fieldDetails$key)
+          fieldNames <- unlist(fieldDetails[detailIndex, 'value'])
+          fieldTypes <- as.character(unlist(fieldDetails[detailIndex, 'type']))
+          
+        } else {
+          
+          globalMessageName <- paste('Custom message', globalMessageNumber)
+          nEntries[globalMessageName] <- 0
+          fieldNames <- paste('Cstm fld', seq_len(nFields))
+          fieldTypes <- rep(NA, nFields)
+          
+        }
+        localToGlobal[as.character(localMessageType)] <- globalMessageName
+        
+        message("Bytes following ", byte0 - 1L, " defined message type ",
+                globalMessageNumber, ": ", globalMessageName, " (local type ", localMessageType,
+                ") with ", nFields, " fields.")
+        
         
         baseTypeIndices <- as.integer(fields[3, ] & as.raw(0x1F)) + 1L
         if (!identical(fitBaseTypes[baseTypeIndices, 'size'],
@@ -86,12 +108,12 @@ ReadFit <- function (fileName) {
           stop("Base type number does not match size at data byte ", byte0)
         }
         
-        names(baseTypeIndices) <- unlist(fieldDetails[detailIndex, 'value'])
+        names(baseTypeIndices) <- fieldNames
         fields <- as.data.frame(list(
           baseTypeIndex = baseTypeIndices,
           size = as.integer(fields[2, ]),
           baseType = fields[3, ],
-          type = as.character(unlist(fieldDetails[detailIndex, 'type']))
+          type = fieldTypes
           ),
           stringsAsFactors = FALSE)
         
@@ -172,7 +194,9 @@ ReadFit <- function (fileName) {
       )
     }
   }
-  if (all(c('manufacturer', 'product') %in% colnames(ret)) && ret[1, 'manufacturer'] == 'garmin') {
+  manufacturer <- ret[1, 'manufacturer']
+  if (all(c('manufacturer', 'product') %in% colnames(ret)) && 
+      !is.na(manufacturer) && manufacturer == 'garmin') {
     # Assume that all entries relate to same device...
     values <- fit_data_types$garmin_product
     prodKey <- match(msg[, 'product'], values$key)
