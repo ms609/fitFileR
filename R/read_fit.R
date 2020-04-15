@@ -48,7 +48,7 @@ ReadFit <- function (fileName) {
   devWarning <- FALSE
   
   nextByte <- 1
-  while (nextByte < 144L) {
+  while (nextByte < 1000L) {
   #while (nextByte < dataSize) {
     header <- rawToBits(dat[nextByte])
     
@@ -58,15 +58,21 @@ ReadFit <- function (fileName) {
     nextByte <- nextByte + 1L
     
     if (header[8]) { # MSB, named Bit 7 in Table 4-1
+      
       # Compressed header
+      
       localMessageType <- .BitsToInt(header[6:7])
       timeOffset <- .BitsToInt(header[1:5])
     } else {
+      
       # Normal header
+      
       localMessageType <- .BitsToInt(header[1:4])
+      
+      
       if (header[7]) { # Bit 6
         
-        # Definition message
+        ## Definition message
         
         byte0 <- nextByte
         if (dat[byte0]) {
@@ -85,6 +91,8 @@ ReadFit <- function (fileName) {
           fieldDetails <- fit_message_types[[globalMessageName]]
           detailIndex <- match(as.integer(fields[1, ]), fieldDetails$key)
           fieldNames <- unlist(fieldDetails[detailIndex, 'value'])
+          fieldNames[is.na(fieldNames)] <- 
+            paste('Cstm fld', as.integer(fields[1, is.na(fieldNames)]))
           fieldTypes <- as.character(unlist(fieldDetails[detailIndex, 'type']))
           
         } else {
@@ -97,15 +105,16 @@ ReadFit <- function (fileName) {
         }
         localToGlobal[as.character(localMessageType)] <- globalMessageName
         
-        message("Bytes following ", byte0 - 1L, " defined message type ",
-                globalMessageNumber, ": ", globalMessageName, " (local type ", localMessageType,
-                ") with ", nFields, " fields.")
+        message("\n\nBytes following ", byte0 - 1L, 
+                " assign local message type ", localMessageType, " to:\n  ",
+                globalMessageNumber, ": '", globalMessageName, 
+                "' (", nFields, " fields).")
         
         
         baseTypeIndices <- as.integer(fields[3, ] & as.raw(0x1F)) + 1L
         if (!identical(fitBaseTypes[baseTypeIndices, 'size'],
                        as.integer(fields[2, ]))) {
-          stop("Base type number does not match size at data byte ", byte0)
+          warning("Base type number does not match size at data byte ", byte0)
         }
         
         names(baseTypeIndices) <- fieldNames
@@ -138,7 +147,7 @@ ReadFit <- function (fileName) {
         
       } else {
         
-        # Normal data message
+        ## Normal data message
         
         if (header[6]) { # Bit 5
           stop("Read error: Reserved bit 5 not zero at data byte ", nextByte)
@@ -155,13 +164,14 @@ ReadFit <- function (fileName) {
                     messageEndian[[messageType]])
         
         output <- capture.output(print(.PrintMessage(messages[[messageType]][entry, ], fields)))
-        message(output[1])
-        message(output[2])
+        for (i in seq_len(length(output) / 2)) {
+          message(output[i + i])
+          message(output[i + i + 1L])
+        }
         nextByte <- nextByte + dataBytes
         
       }
     }
-    
     
     
   }
